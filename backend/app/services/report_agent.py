@@ -2431,14 +2431,49 @@ class ReportManager:
         with open(cls._get_report_path(report.report_id), 'w', encoding='utf-8') as f:
             json.dump(report.to_dict(), f, ensure_ascii=False, indent=2)
         
+        title_for_obsidian = report.report_id
         # 保存大纲
         if report.outline:
             cls.save_outline(report.report_id, report.outline)
+            title_for_obsidian = report.outline.title or report.report_id
         
         # 保存完整Markdown报告
         if report.markdown_content:
             with open(cls._get_report_markdown_path(report.report_id), 'w', encoding='utf-8') as f:
                 f.write(report.markdown_content)
+                
+            # --- Integración con Obsidian Bridge ---
+            try:
+                import sys
+                import os
+                
+                # El path actual es VENTANA/mirofish/MiroFish/backend/app/services/report_agent.py
+                # Buscamos la raiz VENTANA (5 niveles arriba)
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                ventana_root = os.path.abspath(os.path.join(current_dir, "../../../../../"))
+                agents_dir = os.path.join(ventana_root, "agents")
+                
+                if agents_dir not in sys.path:
+                    sys.path.append(agents_dir)
+                    
+                from obsidian_bridge import ObsidianBridge
+                
+                bridge = ObsidianBridge()
+                bridge.create_note(
+                    title=f"MiroFish - {title_for_obsidian}",
+                    content=report.markdown_content,
+                    folder="research_log",
+                    tags=["mirofish", "research"],
+                    metadata={
+                        "simulation_id": report.simulation_id,
+                        "report_id": report.report_id,
+                        "status": "generado_por_mirofish"
+                    }
+                )
+                logger.info(f"Reporte copiado a Obsidian Vault: {title_for_obsidian}")
+            except Exception as e:
+                logger.error(f"Error al exportar reporte a Obsidian: {e}")
+            # --- Fin Integración ---
         
         logger.info(f"报告已保存: {report.report_id}")
     
